@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spin the Wheel — 9 Modes</title>
+<style>
+  :root { color-scheme: dark; --bg:#10121c; --panel:#1b1f2e; --muted:#aeb5ca; --accent:#8b7cff; }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; min-height:100vh; font-family:system-ui,-apple-system,Segoe UI,sans-serif;
+    color:#f7f7ff; background:radial-gradient(ellipse at top,#24294b 0%,#10121c 58%);
+  }
+  .wrap { width:min(1120px,100%); margin:auto; padding:28px 18px 48px; }
+  header { text-align:center; margin-bottom:24px; }
+  h1 { margin:0; font-size:clamp(2rem,5vw,3.4rem); letter-spacing:-.04em; }
+  header p { color:var(--muted); margin:8px 0 0; }
+  .layout { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(300px,.9fr); gap:22px; align-items:start; }
+  .panel { background:rgba(27,31,46,.94); border:1px solid #343950; border-radius:22px; padding:20px; box-shadow:0 18px 50px #0003; }
+  .wheel-panel { display:flex; flex-direction:column; align-items:center; }
+  .wheel-wrap { width:min(100%,540px); aspect-ratio:1; position:relative; margin:8px auto 18px; isolation:isolate; }
+  canvas { display:block; position:relative; z-index:1; width:100%; height:100%; filter:drop-shadow(0 12px 16px #0006); transform-origin:center; }
+  .wheel-wrap.arcade-mode { perspective:1100px; transform-style:preserve-3d; }
+  .wheel-wrap.arcade-mode::before {
+    content:""; position:absolute; z-index:0; inset:-1.5%; border-radius:50%;
+    background:conic-gradient(from -10deg,#fff4bc,#d28b27,#fff4bc,#704016,#ffe79a,#b66a18,#fff4bc);
+    box-shadow:0 13px 0 #633b1b, 0 20px 30px #0009, inset 0 0 0 5px #ffe6a0;
+  }
+  .wheel-wrap.arcade-mode::after {
+    content:""; position:absolute; z-index:2; pointer-events:none; inset:1.2%; border-radius:50%;
+    background:repeating-conic-gradient(from 0deg, #fffde0 0deg 1.7deg, #ffcf4d 1.7deg 3deg, transparent 3deg 10deg);
+    -webkit-mask:radial-gradient(circle, transparent 0 61%, #000 62% 66%, transparent 67%);
+    mask:radial-gradient(circle, transparent 0 61%, #000 62% 66%, transparent 67%);
+    filter:drop-shadow(0 0 4px #ffc83d);
+  }
+  .wheel-wrap.arcade-mode canvas { transform:perspective(1100px) rotateX(13deg) scale(.94); }
+  .wheel-wrap.arcade-mode.arcade-spinning canvas { animation: arcadeApproach .9s ease-in-out infinite alternate; }
+  @keyframes arcadeApproach {
+    from { transform:perspective(1100px) rotateX(8deg) scale(.93); }
+    to { transform:perspective(1100px) rotateX(20deg) scale(.97); }
+  }
+  .wheel-wrap.arcade-mode .pointer { border-top-color:#ffe28a; }
+  .wheel-wrap.arcade-mode .hub { border-color:#74471e; background:radial-gradient(circle at 35% 30%,#fff9d8,#d19a3c 62%,#7b4a1d); }
+  .pointer { position:absolute; z-index:2; top:-7px; left:50%; transform:translateX(-50%); width:0;height:0;
+    border-left:19px solid transparent;border-right:19px solid transparent;border-top:37px solid #fff;
+    filter:drop-shadow(0 3px 3px #0008); }
+  .hub { position:absolute; width:13%; aspect-ratio:1; border-radius:50%; left:50%;top:50%; transform:translate(-50%,-50%);
+    background:linear-gradient(135deg,#fff,#b8bce4); border:5px solid #373b58; box-shadow:0 3px 12px #0007; pointer-events:none; }
+  .result { width:100%; text-align:center; min-height:70px; display:flex; flex-direction:column; justify-content:center; }
+  .result .label { color:var(--muted); font-size:.8rem; text-transform:uppercase; letter-spacing:.13em; }
+  .result strong { font-size:clamp(1.4rem,4vw,2rem); overflow-wrap:anywhere; }
+  .controls { display:flex; gap:10px; width:100%; flex-wrap:wrap; margin-top:10px; }
+  button, select, input, textarea { font:inherit; }
+  button { cursor:pointer; border:0; border-radius:12px; padding:12px 16px; font-weight:750; transition:transform .12s,filter .12s; }
+  button:hover { filter:brightness(1.08); } button:active { transform:scale(.98); }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .primary { background:linear-gradient(135deg,#9788ff,#6a5af9); color:white; flex:1; min-width:140px; }
+  .secondary { background:#30364e; color:#f7f7ff; }
+  .mode-list { display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:10px; }
+  .mode { background:#282d42; color:#e9eaff; border:1px solid #414762; text-align:left; padding:11px 12px; }
+  .mode.active { border-color:#a99eff; background:#39345f; box-shadow:inset 0 0 0 1px #a99eff; }
+  .mode span { display:block; font-size:.76rem; color:#b9bfd7; font-weight:500; margin-top:3px; }
+  h2 { margin:0 0 6px; font-size:1.2rem; }
+  .sub { color:var(--muted); font-size:.9rem; margin:0 0 15px; line-height:1.5; }
+  label { display:block; font-size:.9rem; color:#dce0f2; margin:15px 0 7px; font-weight:650; }
+  textarea, input, select { width:100%; color:#f7f7ff; background:#111522; border:1px solid #3c425d; border-radius:11px; padding:11px 12px; outline:none; }
+  textarea:focus, input:focus, select:focus { border-color:#9788ff; }
+  textarea { min-height:180px; resize:vertical; line-height:1.55; }
+  .edit-row { display:flex; gap:9px; margin-top:10px; }
+  .edit-row button { flex:1; }
+  .history { list-style:none; margin:10px 0 0; padding:0; max-height:180px; overflow:auto; }
+  .history li { display:flex; justify-content:space-between; gap:12px; padding:9px 0; border-bottom:1px solid #343950; font-size:.9rem; }
+  .history small { color:var(--muted); white-space:nowrap; }
+  .note { color:#aeb5ca; font-size:.8rem; line-height:1.5; margin:14px 0 0; }
+  .toast { color:#c9c3ff; font-size:.9rem; min-height:1.3em; margin-top:10px; }
+  @media(max-width:820px) { .layout { grid-template-columns:1fr; } .wheel-wrap { width:min(100%,480px); } }
+  @media(max-width:430px) { .panel { padding:15px; } .mode-list { grid-template-columns:1fr 1fr; gap:7px; } .mode { padding:10px 8px; font-size:.86rem; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🎡 Spin the Wheel</h1>
+    <p>Nine ways to spin. Endless possibilities.</p>
+  </header>
+
+  <main class="layout">
+    <section class="panel wheel-panel">
+      <div class="wheel-wrap">
+        <div class="pointer" aria-hidden="true"></div>
+        <canvas id="wheel" width="900" height="900" aria-label="Prize wheel"></canvas>
+        <div class="hub"></div>
+      </div>
+      <div class="result" aria-live="polite">
+        <div class="label" id="resultLabel">Ready when you are</div>
+        <strong id="resultText">Give it a spin!</strong>
+      </div>
+      <div class="controls">
+        <button id="spinBtn" class="primary">🎯 SPIN THE WHEEL</button>
+        <button id="resetBtn" class="secondary">Reset</button>
+      </div>
+      <p class="note">Tip: select a mode on the right, then spin. Elimination mode removes each winner until you reset it.</p>
+    </section>
+
+    <aside class="panel">
+      <h2>Choose a spin mode</h2>
+      <p class="sub">Each mode changes how the wheel behaves.</p>
+      <label for="wheelStyle">Wheel appearance</label>
+      <select id="wheelStyle">
+        <option value="classic">Classic flat wheel</option>
+        <option value="arcade">Arcade Big Bass style (3D tilt)</option>
+      </select>
+      <p class="note">Arcade style adds a metallic prize-wheel rim, glowing bulbs, a tilted face, and a subtle forward-rocking effect while spinning.</p>
+      <div class="mode-list" id="modeList">
+        <button class="mode active" data-mode="normal">1. Normal<span>Classic random spin</span></button>
+        <button class="mode" data-mode="turbo">2. Turbo<span>Fast and furious</span></button>
+        <button class="mode" data-mode="slow">3. Slow Motion<span>Long dramatic finish</span></button>
+        <button class="mode" data-mode="reverse">4. Reverse<span>Counterclockwise</span></button>
+        <button class="mode" data-mode="double">5. Double Spin<span>Two results in a row</span></button>
+        <button class="mode" data-mode="chaos">6. Chaos<span>Direction changes mid-spin</span></button>
+        <button class="mode" data-mode="lucky">7. Lucky Spin<span>Winner picked first</span></button>
+        <button class="mode" data-mode="elimination">8. Elimination<span>Remove winners</span></button>
+        <button class="mode" data-mode="mystery">9. Mystery<span>Reveal at the end</span></button>
+      </div>
+
+      <label for="options">Wheel options (one per line)</label>
+      <textarea id="options" spellcheck="false">Pizza
+Tacos
+Ice cream
+Movie night
+Video games
+Go outside
+Surprise!
+Pick again</textarea>
+      <div class="edit-row">
+        <button id="applyBtn" class="secondary">Apply options</button>
+        <button id="shuffleBtn" class="secondary">Shuffle colors</button>
+      </div>
+      <div id="status" class="toast" role="status"></div>
+
+      <h2 style="margin-top:23px">Spin history</h2>
+      <p class="sub">Your latest results appear here.</p>
+      <ul id="history" class="history"><li><span>No spins yet</span><small>Ready</small></li></ul>
+    </aside>
+  </main>
+</div>
+<script>
+(() => {
+  const canvas = document.getElementById('wheel');
+  const ctx = canvas.getContext('2d');
+  const spinBtn = document.getElementById('spinBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const optionsInput = document.getElementById('options');
+  const resultLabel = document.getElementById('resultLabel');
+  const resultText = document.getElementById('resultText');
+  const status = document.getElementById('status');
+  const historyList = document.getElementById('history');
+  const wheelWrap = document.querySelector('.wheel-wrap');
+  const wheelStyle = document.getElementById('wheelStyle');
+  const STORAGE_KEY = 'spinTheWheelOptions_v1';
+  const STYLE_STORAGE_KEY = 'spinTheWheelStyle_v1';
+  const TAU = Math.PI * 2;
+  const palette = ['#ff5c7a','#ff9855','#ffd166','#a7df65','#43d9bd','#4fb3ff','#7778ff','#b57bff','#f47bd5','#f3f4ff','#fa6b45','#4dce88'];
+  let options = [];
+  let colors = [];
+  let angle = 0;
+  let spinning = false;
+  let activeMode = 'normal';
+  let history = [];
+  let eliminated = [];
+  let spinToken = 0;
+
+  const modeNames = {
+    normal:'Normal Spin', turbo:'Turbo Spin', slow:'Slow Motion', reverse:'Reverse Spin',
+    double:'Double Spin', chaos:'Chaos Spin', lucky:'Lucky Spin', elimination:'Elimination Spin', mystery:'Mystery Spin'
+  };
+
+  function randomInt(max) { return Math.floor(Math.random() * max); }
+  function randomColor() { return palette[randomInt(palette.length)]; }
+  function setStatus(message='') { status.textContent = message; }
+
+  function applyWheelStyle(style, shouldSave=true) {
+    const arcade = style === 'arcade';
+    wheelWrap.classList.toggle('arcade-mode', arcade);
+    wheelStyle.value = arcade ? 'arcade' : 'classic';
+    if (shouldSave) {
+      try { localStorage.setItem(STYLE_STORAGE_KEY, wheelStyle.value); } catch (error) {}
+    }
+    drawWheel();
+  }
+
+  wheelStyle.addEventListener('change', () => {
+    applyWheelStyle(wheelStyle.value);
+    setStatus(wheelStyle.value === 'arcade'
+      ? 'Arcade Big Bass style enabled.'
+      : 'Classic wheel style enabled.');
+  });
+
+  // Save the editable list as the user types, and restore it on the next visit.
+  function saveOptionsText() {
+    try {
+      localStorage.setItem(STORAGE_KEY, optionsInput.value);
+    } catch (error) {
+      setStatus('Could not save options in this browser.');
+    }
+  }
+
+  function loadSavedOptions() {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved !== null) optionsInput.value = saved;
+    } catch (error) {
+      // The game still works if local storage is unavailable.
+    }
+  }
+
+  optionsInput.addEventListener('input', saveOptionsText);
+
+  function readOptions() {
+    const lines = optionsInput.value.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    return [...new Set(lines)].slice(0,60);
+  }
+
+  function syncColors() {
+    colors = options.map((_, i) => colors[i] || palette[i % palette.length]);
+  }
+
+  function drawWheel() {
+    const w = canvas.width, h = canvas.height;
+    const cx = w/2, cy = h/2, r = w/2 - 28;
+    ctx.clearRect(0,0,w,h);
+    ctx.save();
+    ctx.translate(cx,cy);
+    if (!options.length) {
+      ctx.beginPath(); ctx.arc(0,0,r,0,TAU); ctx.fillStyle='#353a52'; ctx.fill();
+      ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.font='bold 36px system-ui'; ctx.fillText('Add some options',0,0);
+      ctx.restore(); return;
+    }
+    const slice = TAU / options.length;
+    for (let i=0;i<options.length;i++) {
+      const start = angle - Math.PI/2 + i*slice;
+      const end = start + slice;
+      ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,r,start,end); ctx.closePath();
+      ctx.fillStyle=colors[i] || palette[i%palette.length]; ctx.fill();
+      ctx.strokeStyle='rgba(255,255,255,.8)'; ctx.lineWidth=4; ctx.stroke();
+      ctx.save();
+      ctx.rotate(start + slice/2);
+      ctx.textAlign='right'; ctx.textBaseline='middle';
+      const fontSize = Math.max(15, Math.min(30, 390/options.length));
+      ctx.font=`800 ${fontSize}px system-ui, sans-serif`;
+      ctx.lineWidth=5; ctx.strokeStyle='rgba(0,0,0,.23)'; ctx.fillStyle='#fff';
+      const label = options[i].length > 24 ? options[i].slice(0,22)+'…' : options[i];
+      ctx.strokeText(label,r-32,0,Math.max(60,r*.55));
+      ctx.fillText(label,r-32,0,Math.max(60,r*.55));
+      ctx.restore();
+    }
+    ctx.beginPath(); ctx.arc(0,0,r,0,TAU); ctx.strokeStyle='rgba(255,255,255,.95)'; ctx.lineWidth=9; ctx.stroke();
+    ctx.restore();
+  }
+
+  function currentWinner() {
+    if (!options.length) return '';
+    const slice = TAU / options.length;
+    // The pointer is at the top; account for the wheel's rotation.
+    const normalized = ((-angle % TAU) + TAU) % TAU;
+    const idx = Math.floor(normalized / slice) % options.length;
+    return options[idx];
+  }
+
+  function winnerIndexAt(angleValue) {
+    const slice = TAU / options.length;
+    const normalized = ((-angleValue % TAU) + TAU) % TAU;
+    return Math.floor(normalized / slice) % options.length;
+  }
+
+  function addHistory(text, mode) {
+    history.unshift({text, mode});
+    history = history.slice(0,20);
+    historyList.innerHTML = '';
+    history.forEach(item => {
+      const li = document.createElement('li');
+      const left = document.createElement('span'); left.textContent = item.text;
+      const right = document.createElement('small'); right.textContent = item.mode;
+      li.append(left,right); historyList.append(li);
+    });
+  }
+
+  function setMode(mode) {
+    if (spinning) return;
+    activeMode = mode;
+    document.querySelectorAll('.mode').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === mode));
+    setStatus(`${modeNames[mode]} selected.`);
+  }
+
+  function easeOutCubic(t) { return 1 - Math.pow(1-t,3); }
+  function easeInOut(t) { return t < .5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2; }
+
+  function targetAngleForIndex(index, extraTurns, fromAngle, direction=1) {
+    const slice = TAU/options.length;
+    // Land in the middle of the requested slice at the pointer's top position.
+    const desired = -(index + .5)*slice;
+    let delta = ((desired - fromAngle) % TAU + TAU) % TAU;
+    if (direction < 0) delta = -(((fromAngle - desired) % TAU + TAU) % TAU);
+    return fromAngle + direction*extraTurns*TAU + delta;
+  }
+
+  function animateTo(target, duration, easing, token, onDone, chaos=false) {
+    const start = angle, startTime = performance.now();
+    let changed = false;
+    function frame(now) {
+      if (token !== spinToken) return;
+      const t = Math.min(1,(now-startTime)/duration);
+      const e = easing(t);
+      if (chaos && !changed && t >= .48) {
+        changed = true;
+      }
+      if (chaos && changed) {
+        // Direction reversal is represented by a curved easing path around the target.
+        const first = .48;
+        const e1 = easeInOut(Math.min(1,t/first));
+        const e2 = easeOutCubic(Math.max(0,(t-first)/(1-first)));
+        const mid = start + (target-start)*.7;
+        angle = t < first ? start + (mid-start)*e1 : mid + (target-mid)*e2;
+      } else {
+        angle = start + (target-start)*e;
+      }
+      drawWheel();
+      if (t < 1) requestAnimationFrame(frame);
+      else { angle = target; drawWheel(); onDone?.(); }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function doOneSpin(mode, token, callback) {
+    if (!options.length) { callback?.('No options'); return; }
+    const targetIndex = mode === 'lucky' ? randomInt(options.length) : null;
+    const duration = mode === 'turbo' ? 1400 : mode === 'slow' ? 6500 : mode === 'double' ? 2400 : mode === 'mystery' ? 3900 : mode === 'chaos' ? 3400 : 3200;
+    const turns = mode === 'turbo' ? 11 : mode === 'slow' ? 3 : mode === 'double' ? 5 : mode === 'mystery' ? 7 : mode === 'chaos' ? 6 : 6;
+    const direction = mode === 'reverse' ? -1 : 1;
+    const index = targetIndex === null ? randomInt(options.length) : targetIndex;
+    const target = targetAngleForIndex(index, turns, angle, direction);
+    if (mode === 'mystery') {
+      resultLabel.textContent = 'Mystery result';
+      resultText.textContent = '???';
+    } else {
+      resultLabel.textContent = modeNames[mode];
+      resultText.textContent = 'Spinning…';
+    }
+    animateTo(target,duration, mode === 'slow' ? easeInOut : easeOutCubic, token, () => {
+      const winner = options[winnerIndexAt(angle)];
+      callback?.(winner);
+    }, mode === 'chaos');
+  }
+
+  function startSpin() {
+    if (spinning) return;
+    if (options.length < 2) { setStatus('Add at least two different options first.'); return; }
+    if (activeMode === 'elimination' && options.length === 0) return;
+    spinning = true; spinBtn.disabled = true; resetBtn.disabled = true;
+    wheelWrap.classList.toggle('arcade-spinning', wheelStyle.value === 'arcade');
+    const token = ++spinToken;
+    setStatus('');
+    if (activeMode === 'double') {
+      doOneSpin('double',token,first => {
+        resultLabel.textContent = 'First spin';
+        resultText.textContent = first;
+        addHistory(first,'Double · 1/2');
+        setTimeout(() => {
+          if (token !== spinToken) return;
+          doOneSpin('normal',token,second => {
+            resultLabel.textContent = 'Double spin complete';
+            resultText.textContent = `${first} + ${second}`;
+            addHistory(second,'Double · 2/2');
+            finishSpin();
+          });
+        },650);
+      });
+      return;
+    }
+    const mode = activeMode;
+    doOneSpin(mode,token,winner => {
+      if (winner === 'No options') { finishSpin(); return; }
+      if (mode === 'mystery') {
+        resultLabel.textContent = 'The mystery is solved!';
+      } else if (mode === 'lucky') {
+        resultLabel.textContent = 'Lucky winner';
+      } else {
+        resultLabel.textContent = modeNames[mode];
+      }
+      resultText.textContent = winner;
+      addHistory(winner,modeNames[mode]);
+      if (mode === 'elimination') {
+        eliminated.push(winner);
+        options = options.filter((item) => item !== winner);
+        optionsInput.value = options.join('\n');
+        saveOptionsText();
+        syncColors(); drawWheel();
+        if (options.length === 1) setStatus('One option remains! Reset or apply new options to continue.');
+        else setStatus(`Removed "${winner}" from the wheel.`);
+      }
+      finishSpin();
+    });
+  }
+
+  function finishSpin() {
+    spinning = false;
+    wheelWrap.classList.remove('arcade-spinning');
+    spinBtn.disabled = false; resetBtn.disabled = false;
+    if (activeMode === 'elimination' && options.length < 2) {
+      spinBtn.disabled = true;
+      setStatus(options.length ? `Last option: ${options[0]}. Reset or apply more options.` : 'All options eliminated. Apply new options or reset.');
+    }
+  }
+
+  document.querySelectorAll('.mode').forEach(btn => btn.addEventListener('click',() => setMode(btn.dataset.mode)));
+  spinBtn.addEventListener('click',startSpin);
+
+  document.getElementById('applyBtn').addEventListener('click',() => {
+    if (spinning) return;
+    const next = readOptions();
+    if (next.length < 2) { setStatus('Please enter at least two different options.'); return; }
+    options = next; eliminated = []; colors = options.map((_,i)=>palette[i%palette.length]);
+    saveOptionsText();
+    drawWheel(); resultLabel.textContent='Options updated'; resultText.textContent='Ready to spin!';
+    spinBtn.disabled=false; setStatus(`${options.length} options loaded.`);
+  });
+
+  document.getElementById('shuffleBtn').addEventListener('click',() => {
+    if (spinning) return;
+    colors = options.map(()=>randomColor()); drawWheel(); setStatus('Wheel colors shuffled.');
+  });
+
+  resetBtn.addEventListener('click',() => {
+    if (spinning) return;
+    const fresh = readOptions();
+    if (fresh.length >= 2) {
+      options = fresh; colors = options.map((_,i)=>palette[i%palette.length]);
+    }
+    angle = 0; eliminated = []; history = [];
+    historyList.innerHTML = '<li><span>No spins yet</span><small>Ready</small></li>';
+    resultLabel.textContent='Ready when you are'; resultText.textContent='Give it a spin!';
+    spinBtn.disabled = options.length < 2;
+    setStatus('Wheel reset.');
+    drawWheel();
+  });
+
+  loadSavedOptions();
+  try {
+    const savedStyle = localStorage.getItem(STYLE_STORAGE_KEY);
+    if (savedStyle === 'arcade' || savedStyle === 'classic') applyWheelStyle(savedStyle, false);
+  } catch (error) {}
+  options = readOptions();
+  colors = options.map((_,i)=>palette[i%palette.length]);
+  drawWheel();
+})();
+</script>
+</body>
+</html>
